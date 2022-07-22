@@ -148,7 +148,7 @@ def parse_args():
     parser.add_argument('--num_heads', type=int, default=4)
     parser.add_argument('--num_layers', type=int, default=1)
     parser.add_argument('--patch_emb_dim', type=int, default=768)
-    parser.add_argument('--obj_max_num', type=int, default=55)
+    parser.add_argument('--obj_max_num', type=int, default=45)
     # language model
     parser.add_argument('--lang_model', type=str, default='bert-small',
                         choices=['bert-tiny', 'bert-mini', 'bert-small', 'bert-medium', 'bert-base', 'bert-base-uncased'])

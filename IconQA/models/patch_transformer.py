@@ -9,7 +9,6 @@ import sys
 from .vitrm_models.Transformer import TransformerModel
 from .vitrm_models.PositionalEncoding import FixedPositionalEncoding, LearnedPositionalEncoding
 
-
 class VisionTransformer(nn.Module):
     def __init__(
         self,
@@ -47,6 +46,11 @@ class VisionTransformer(nn.Module):
         self.relu = nn.ReLU()
 
         self.linear_encoding = nn.Linear(patch_dim, embedding_dim)
+        self.linear_obj_encoding = nn.Sequential(
+            nn.Linear(obj_dim, 64),
+            nn.ReLU(),
+            nn.Linear(64, embedding_dim),
+        )
         self.linear_obj_encoding = nn.Linear(obj_dim, embedding_dim)
         if positional_encoding_type == "learned":
             self.position_encoding = LearnedPositionalEncoding(
@@ -80,10 +84,17 @@ class VisionTransformer(nn.Module):
             self.mlp_head = nn.Linear(embedding_dim, out_dim)
 
         self.to_cls_token = nn.Identity()
+        self.linear = nn.Sequential(
+            nn.Linear(512, 64),
+            nn.ReLU(),
+            nn.Linear(64, 4),
+        )
 
-    def forward(self, x, obj):
+
+    def forward(self, x, obj, value):
         # x: [batch, patch_nums, patch_dim] ([N,patch_nums,2048])
-        # obj: [batch, obj_nums, obj_dim]
+        # obj: [batch, obj_nums, 4]
+        # value: [batch, obj_nums, 512]
         x = self.linear_encoding(x) # [N, patch_nums, 768]
 
         # position encoding
@@ -93,11 +104,11 @@ class VisionTransformer(nn.Module):
         x = self.pe_dropout(x)
 
         # object information embedding(without position encoding)
-        obj_info_embed = self.linear_obj_encoding(obj)  # [N, obj_nums, 768]
-        obj_info_embed = self.relu(obj_info_embed)
-        # obj_info_embed = self.obj_position_encoding(obj_info_embed)
-        # obj_info_embed = self.pe_dropout(obj_info_embed)
-
+        value_feat = self.linear(value)     # [N, obj_nums, 4]
+        obj_info = torch.cat((obj, value_feat), 2) # [N, obj_nums, 8]
+        obj_info_embed = self.linear_obj_encoding(obj_info)  # [N, obj_nums, 768]
+        obj_info_embed = self.obj_position_encoding(obj_info_embed)
+        obj_info_embed = self.pe_dropout(obj_info_embed)
         x = torch.cat((x, obj_info_embed), 1)
 
         # apply transformer
@@ -127,7 +138,9 @@ def Patch_Transformer(obj_dim, obj_max_num, num_patches=30, num_heads=4, num_lay
 
 
 if __name__ == '__main__':
-    model = Patch_Transformer()
+    model = Patch_Transformer(obj_dim=8, obj_max_num=45)
     input = torch.rand(4, 30, 2048) # [batch, patch_nums, patch_dim]
-    output = model(input)
+    obj = torch.rand(4, 45, 4)
+    value = torch.rand(4, 45, 512)
+    output = model(input, obj, value)
     print(output.size())

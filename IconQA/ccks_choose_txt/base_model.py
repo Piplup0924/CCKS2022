@@ -36,21 +36,21 @@ class Transformer_Bert_Model(nn.Module):
         self.v_trm_net = v_trm_net
         self.patch_dim = patch_dim
 
-    def patch_net(self, v, o, q_emb):
-        v = self.v_trm_net(v, o) # [N,num_patch+obj_num+1,768]
+    def patch_net(self, v, o, value, q_emb):
+        v = self.v_trm_net(v, o, value) # [N,num_patch+obj_num+1,768]
         att = self.v_att(v, q_emb) # [N,num_patch+obj_num+1,1]
         v_emb = (att * v).sum(1) # [N,768]
         return v_emb
 
     def bert(self, input_ids):
-        last_hidden_states = self.bert_net(input_ids) # [N,59,num_hid]
+        last_hidden_states = self.bert_net(input_ids) # [N,59,bert_dim]
         q_features = last_hidden_states[0][:, 0, :] # [N,num_hid]
         return q_features
 
-    def merge_img_que(self, v, q, o):
+    def merge_img_que(self, v, q, o, value):
         q_emb = self.bert(q)
         q_emb = self.w_net(q_emb)
-        v_emb = self.patch_net(v, o, q_emb)
+        v_emb = self.patch_net(v, o, value, q_emb)
         q_repr = self.q_net(q_emb) # [batch, num_hid]
         v_repr = self.v_net(v_emb) # [batch, num_hid]
         joint_repr = q_repr * v_repr
@@ -69,15 +69,17 @@ class Transformer_Bert_Model(nn.Module):
         c_emb = c_emb.view(batch, num_choices, -1) # [N,c_num,q_dim]
         return c_emb
 
-    def forward(self, v, q, c, o):
+    def forward(self, v, q, c, o, value):
         """
         v: [batch, num_pats, v_dim]
         q: [batch_size, seq_length]
         o: [batch, obj_nums, obj_dims]
+        c: [batch, c_num, max_choice_len]
+        value: [batch, obj_nums, 512]
         return: logits, not probs
         """
         batch, c_num, len_c = c.size()
-        joint_vq = self.merge_img_que(v, q, o).unsqueeze(1) # [N,1,num_hid]
+        joint_vq = self.merge_img_que(v, q, o, value).unsqueeze(1) # [N,1,num_hid]
         c_emb = self.embed_choice(c) # [N,c_num,q_dim]
         c_repr = self.c_net(c_emb.view(batch, -1)).view(batch, c_num, -1) # [N,c_num,q_dim]
         qc_repr = torch.cat((joint_vq, c_repr), 1)

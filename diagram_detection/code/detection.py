@@ -1,8 +1,6 @@
 import wandb
 
 import sys
-sys.path.insert(0, '../mmdetection')
-
 
 import torch, torchvision
 import mmdet
@@ -35,102 +33,75 @@ os.environ['PYTHONHASHSEED'] = str(seed)
 
 random.seed(seed)
 
-def create_subset(c, cats, valid_n = 3000,test_n=3000):
-    new_coco = {}
-    cat_ids = c.getCatIds(cats)
-    train_img_ids = set()
-    valid_img_ids = set()
-    test_img_ids = set()
-    for cat in cat_ids[::-1]:                                    # 按照检测种类均匀分配图片
-        img_ids = copy.copy(c.getImgIds(catIds=[cat]))
-        random.shuffle(img_ids)
-        tn = max(int(len(img_ids) / 10), 1)
-        vn = max(int(len(img_ids) / 10), 1)
-        new_test = set(img_ids[:tn])
-        new_valid = set(img_ids[tn:tn + vn])
-        exist_test_ids = new_test.intersection(train_img_ids)    # 找到交集（有些图片在其他物品特征处理的时候已经分到了train中）
-        exist_test_ids_in_valid = new_test.intersection(new_valid)
-        a = new_test.intersection(valid_img_ids)
-        b = new_test.intersection(test_img_ids)
-        exist_valid_ids = new_valid.intersection(train_img_ids)
-        d = new_valid.intersection(valid_img_ids)
-        e = new_valid.intersection(test_img_ids)
-        f = new_valid.intersection(new_test)
-        test_ids = new_test.difference(new_valid).difference(train_img_ids).difference(valid_img_ids).difference(test_img_ids) # 挑出new_test中不是交集的部分
-        valid_ids = new_valid.difference(new_test).difference(train_img_ids).difference(valid_img_ids).difference(test_img_ids)
-        train_ids = set(img_ids).difference(new_valid).difference(new_test).difference(train_img_ids).difference(valid_img_ids).difference(test_img_ids)
-#         print(tn, vn, len(img_ids), len(new_test), len(test_ids), len(new_valid), len(valid_ids),len(train_ids))
-        print(len(train_ids), len(valid_ids), len(test_ids))
-        train_img_ids.update(train_ids)
-        test_img_ids.update(test_ids)
-        valid_img_ids.update(valid_ids)
-#         print(len(test_img_ids))
+type2id = dict()
 
-    # prune duplicates
-    dup_test = train_img_ids.intersection(test_img_ids)
-    dup_valid = train_img_ids.intersection(valid_img_ids)
-    train_img_ids = train_img_ids - dup_test - valid_img_ids
+for i in range(-100, 101):
+    type2id[str(i)] = i + 100
+
+for up in [chr(i) for i in range(65, 91)]:
+    type2id[up] = ord(up) - 65 + 201
+
+for low in [chr(i) for i in range(97, 123)]:
+    type2id[low] = ord(low) - 97 + 227
+
+
+# def create_subset(c:COCO, cats):
+#     new_coco = {}
+#     cat_ids = c.getCatIds(cats)
+#     train_img_ids = range(0, 16000)
+#     valid_img_ids = range(16000, 18000)
+#     test_img_ids = range(18000, 20000)
     
-    train_anno_ids = set()
-    test_anno_ids = set()
-    valid_anno_ids = set()
-    for cat in cat_ids:
-        train_anno_ids.update(c.getAnnIds(imgIds=list(train_img_ids), catIds=[cat]))
-        test_anno_ids.update(c.getAnnIds(imgIds=list(test_img_ids), catIds=[cat]))
-        valid_anno_ids.update(c.getAnnIds(imgIds=list(valid_img_ids), catIds=[cat]))
+#     train_anno_ids = c.getAnnIds(imgIds=train_img_ids)
+#     valid_anno_ids = c.getAnnIds(imgIds=valid_img_ids)
+#     test_anno_ids = c.getAnnIds(imgIds=test_img_ids)
 
-    assert len(train_img_ids.intersection(test_img_ids)) == 0, 'img id conflicts with test, {} '.format(train_img_ids.intersection(test_img_ids))
-    assert len(train_anno_ids.intersection(test_anno_ids)) == 0, 'anno id conflicts with test'
-    assert len(train_img_ids.intersection(valid_img_ids)) == 0, 'img id conflicts with valid, {} '.format(train_img_ids.intersection(valid_img_ids))
-    assert len(train_anno_ids.intersection(valid_anno_ids)) == 0, 'anno id conflicts with valid'
-    print('train img ids #:', len(train_img_ids), 'train anno #:', len(train_anno_ids))
-    print('valid img ids #:', len(valid_img_ids), 'valid anno #:', len(valid_anno_ids))
-    print('test img ids #:', len(test_img_ids), 'test anno #:', len(test_anno_ids))
-    new_coco_test = copy.deepcopy(new_coco)
-    new_coco_valid = copy.deepcopy(new_coco)
+#     print('train img ids #:', len(train_img_ids), 'train anno #:', len(train_anno_ids))
+#     print('valid img ids #:', len(valid_img_ids), 'valid anno #:', len(valid_anno_ids))
+#     print('test img ids #:', len(test_img_ids), 'test anno #:', len(test_anno_ids))
+#     new_coco_test = copy.deepcopy(new_coco)
+#     new_coco_valid = copy.deepcopy(new_coco)
 
-    new_coco["images"] = c.loadImgs(list(train_img_ids))
-    new_coco["annotations"] = c.loadAnns(list(train_anno_ids))
+#     new_coco["images"] = c.loadImgs(train_img_ids)
+#     new_coco["annotations"] = c.loadAnns(train_anno_ids)
     
-    for ann in new_coco["annotations"]:
-        ann.pop('segmentation', None)
-    new_coco["categories"] = c.loadCats(cat_ids)
+#     for ann in new_coco["annotations"]:
+#         ann.pop('segmentation', None)
+#     new_coco["categories"] = c.loadCats(cat_ids)
     
-    new_coco_valid['images'] = c.loadImgs(list(valid_img_ids))
-    new_coco_valid['annotations'] = c.loadAnns(list(valid_anno_ids))
+#     new_coco_valid['images'] = c.loadImgs(valid_img_ids)
+#     new_coco_valid['annotations'] = c.loadAnns(valid_anno_ids)
     
-    new_coco_test["images"] = c.loadImgs(list(test_img_ids))
-    new_coco_test["annotations"] = c.loadAnns(list(test_anno_ids))
-    for ann in new_coco_test["annotations"]:
-        ann.pop('segmentation', None)
-    for ann in new_coco_valid["annotations"]:
-        ann.pop('segmentation', None)
-    new_coco_test["categories"] = c.loadCats(cat_ids)
-    new_coco_valid['categories'] = c.loadCats(cat_ids)
-    print('new train split, images:', len(new_coco["images"]), 'annos:', len(new_coco["annotations"]))
-    print('new valid split, images:', len(new_coco_valid["images"]), 'annos:', len(new_coco_valid["annotations"]))
-    print('new test split, images:', len(new_coco_test["images"]), 'annos:', len(new_coco_test["annotations"]))
-    return new_coco, new_coco_valid ,new_coco_test
+#     new_coco_test["images"] = c.loadImgs(test_img_ids)
+#     new_coco_test["annotations"] = c.loadAnns(test_anno_ids)
+#     for ann in new_coco_test["annotations"]:
+#         ann.pop('segmentation', None)
+#     for ann in new_coco_valid["annotations"]:
+#         ann.pop('segmentation', None)
+#     new_coco_test["categories"] = c.loadCats(cat_ids)
+#     new_coco_valid['categories'] = c.loadCats(cat_ids)
 
-coco = COCO('./dataset/bbox_coco.json')
-nc, nc_valid, nc_test = create_subset(coco, [str(i) for i in range(-100, 101)])
+#     return new_coco, new_coco_valid ,new_coco_test
 
-with open('./new_anno/new_train.json', 'w') as f:
-    json.dump(nc, f)
-with open('./new_anno/new_valid.json', 'w') as f:
-    json.dump(nc_valid, f)
-with open('./new_anno/new_test.json', 'w') as f:
-    json.dump(nc_test, f)
+# coco = COCO('./dataset1/bbox_coco.json')
+# nc, nc_valid, nc_test = create_subset(coco, type2id.keys())
+
+# with open('./new_anno1/new_train.json', 'w') as f:
+#     json.dump(nc, f)
+# with open('./new_anno1/new_valid.json', 'w') as f:
+#     json.dump(nc_valid, f)
+# with open('./new_anno1/new_test.json', 'w') as f:
+#     json.dump(nc_test, f)
 
 from mmcv import Config
 
-baseline_cfg_path = "./mmdetection/configs/cascade_rcnn/cascade_rcnn_r50_fpn_1x_coco.py"
+baseline_cfg_path = "./mmdetection/configs/cascade_rcnn/cascade_rcnn_r101_fpn_1x_coco.py"
 
 cfg = Config.fromfile(baseline_cfg_path)
 cfg_focal = Config.fromfile(baseline_cfg_path)
 
 
-model_name = 'cascade_rcnn_r50_fpn_1x_1'
+model_name = 'cascade_rcnn_r101_fpn_1x_1'
 job = 8
 
 # Folder to store model logs and weight files
@@ -154,7 +125,7 @@ print("Job folder:", job_folder)
 
 # Set the number of classes
 for i in cfg.model.roi_head.bbox_head:
-    i.num_classes = 201
+    i.num_classes = 253
 
 # cfg.model.train_cfg.rpn.allowed_border=-1
 
@@ -176,30 +147,30 @@ cfg.lr_config = dict(
     min_lr=1e-07)
 
 # config to register logger hook
-cfg.log_config.interval = 40 # Interval to print the log
+cfg.log_config.interval = 50 # Interval to print the log
 
 # Config to set the checkpoint hook, Refer to https://github.com/open-mmlab/mmcv/blob/master/mmcv/runner/hooks/checkpoint.py for implementation.
 cfg.checkpoint_config.interval = 1 # The save interval is 1
 
 
 cfg.dataset_type = 'CocoDataset' # Dataset type, this will be used to define the dataset
-cfg.classes = [str(i) for i in range(-100, 101)]
+cfg.classes = list(type2id.keys())
 
-data_images = './dataset/image'
+data_images = './dataset1/image'
 
 cfg.data.train.img_prefix = data_images
 cfg.data.train.classes = cfg.classes
-cfg.data.train.ann_file = './new_anno/new_train.json'
+cfg.data.train.ann_file = './new_anno1_0.8/new_train.json'
 cfg.data.train.type='CocoDataset'
 
 cfg.data.val.img_prefix = data_images
 cfg.data.val.classes = cfg.classes
-cfg.data.val.ann_file = './new_anno/new_valid.json'
+cfg.data.val.ann_file = './new_anno1_0.8/new_valid.json'
 cfg.data.val.type='CocoDataset'
 
 cfg.data.test.img_prefix = data_images
 cfg.data.test.classes = cfg.classes
-cfg.data.test.ann_file = './new_anno/new_test.json'
+cfg.data.test.ann_file = './new_anno1_0.8/new_test.json'
 cfg.data.test.type='CocoDataset'
 
 cfg.data.samples_per_gpu = 8  # Batch size of a single GPU used in training

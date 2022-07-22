@@ -57,7 +57,7 @@ def evaluate(model, dataloader, output):
     idx = 0
     pbar = tqdm(total=len(dataloader))
 
-    for i, (v, q, c, o, qid) in enumerate(dataloader):
+    for i, (v, q, c, o, value, qid) in enumerate(dataloader):
         pbar.update(1)
         batch_size = v.size(0)
 
@@ -65,7 +65,8 @@ def evaluate(model, dataloader, output):
         q = q.to(device)
         c = c.to(device)
         o = o.to(device)
-        logits = model(v, q, c, o)
+        value = value.to(device)
+        logits = model(v, q, c, o, value)
 
         ques_ids = torch.IntTensor([int(ques_id) for ques_id in qid])
         pred[idx:idx + batch_size, :].copy_(logits.data)
@@ -117,7 +118,7 @@ def parse_args():
     parser.add_argument('--num_heads', type=int, default=4)
     parser.add_argument('--num_layers', type=int, default=1)
     parser.add_argument('--patch_emb_dim', type=int, default=768)
-    parser.add_argument('--obj_max_num', type=int, default=55)
+    parser.add_argument('--obj_max_num', type=int, default=45)
     # language model
     parser.add_argument('--lang_model', type=str, default='bert-small',
                         choices=['bert-tiny', 'bert-mini', 'bert-small', 'bert-medium', 'bert-base', 'bert-base-uncased'])
@@ -138,11 +139,11 @@ if __name__ == '__main__':
     # dataset
     dictionary = Dictionary.load_from_file(args.input + '/dictionary.pkl') # load dictionary
     eval_dset = ccksFeatureDataset('test', args.feat_label, args.input,
-                                  dictionary, args.lang_model, args.max_length, args.obj_max_num) # generate test data
+                                  dictionary, args.lang_model, args.max_length, args.obj_max_num, args.gpu) # generate test data
     batch_size = args.batch_size
 
     # data loader
-    test_loader = DataLoader(eval_dset, batch_size, shuffle=False, num_workers=4)
+    test_loader = DataLoader(eval_dset, batch_size, shuffle=False, num_workers=0)
 
     # build the model
     constructor = 'build_%s' % args.model

@@ -216,7 +216,7 @@ class ccksFeatureDataset(Dataset):
         choices = entry['c_token']
         img_name = entry['image_name']
 
-        obj, desc_feat = self.info_embed[img_name] # [obj_max_num, 64], [obj_max_num, 1]
+        obj, value_feat = self.info_embed[img_name] # [obj_max_num, 4], [obj_max_num, 512]
 
 
         if self.name in ['train', 'val']:
@@ -228,9 +228,9 @@ class ccksFeatureDataset(Dataset):
             if answer_label in range(self.c_num):
                 target[answer_label] = 1.0
             
-            return features, question, choices, target, obj, desc_feat, question_id
+            return features, question, choices, target, obj, value_feat, question_id
         elif self.name == "test":
-            return features, question, choices, obj, desc_feat, question_id
+            return features, question, choices, obj, value_feat, question_id
 
     def __len__(self):
         return len(self.entries)

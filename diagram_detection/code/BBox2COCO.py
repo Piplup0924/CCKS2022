@@ -87,10 +87,10 @@ def load_data(classNames: list, imagesPath, labelsPath):
             cateId = int(cateId)
             center_x = float(center_x)
             center_y = float(center_y)
-            # w = float(w) * 0.75
-            # h = float(h) * 0.75
-            w = float(w)
-            h = float(h)
+            w = float(w) * 0.8
+            h = float(h) * 0.8
+            # w = float(w)
+            # h = float(h)
 
             coco_xywh = data_xywh2coco_xywh([center_x, center_y, w, h], imgW, imgH)
 
@@ -120,7 +120,7 @@ if __name__ == '__main__':
 
     img_path = "./dataset1/image/"
     label_path = "./dataset1/label/"
-    save_path = "./dataset1/bbox_coco.json"
+    save_path = "./dataset1/bbox_coco_0.8.json"
     jsonInfo = load_data(types, img_path, label_path)
     saveCOCOJson(jsonInfo, save_path)
 

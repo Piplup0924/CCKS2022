@@ -34,15 +34,16 @@ def evaluate(model, dataloader):
     score = 0
     num_data = 0
 
-    for v, q, c, a, o, qid in iter(dataloader):
+    for v, q, c, a, o, value, qid in iter(dataloader):
         with torch.no_grad():
             v = v.to(device)
             q = q.to(device)
             c = c.to(device)
             a = a.to(device)
             o = o.to(device)
+            value = value.to(device)
 
-            pred = model(v, q, c, o)
+            pred = model(v, q, c, o, value)
             batch_score = compute_score_with_logits(pred, a).sum() # accurate answer number
             score += batch_score
             num_data += pred.size(0)
@@ -66,14 +67,15 @@ def train(model, train_loader, eval_loader, num_epochs, output, save_all, patien
         t = time.time()
 
         # for each mini-bach data
-        for i, (v, q, c, a, o, pid) in enumerate(train_loader):
+        for i, (v, q, c, a, o, value, qid) in enumerate(train_loader):
             v = v.to(device)
             q = q.to(device)
             c = c.to(device)
             a = a.to(device)
             o = o.to(device)
+            value = value.to(device)
 
-            pred = model(v, q, c, o)
+            pred = model(v, q, c, o, value)
             loss = instance_bce_with_logits(pred, a)
 
             loss.backward()
@@ -146,7 +148,7 @@ def parse_args():
     parser.add_argument('--num_heads', type=int, default=4)
     parser.add_argument('--num_layers', type=int, default=1)
     parser.add_argument('--patch_emb_dim', type=int, default=768)
-    parser.add_argument('--obj_max_num', type=int, default=55)
+    parser.add_argument('--obj_max_num', type=int, default=45)
     # language model
     parser.add_argument('--lang_model', type=str, default='bert-small',
                         choices=['bert-tiny', 'bert-mini', 'bert-small', 'bert-medium', 'bert-base', 'bert-base-uncased'])
@@ -165,7 +167,6 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-
     torch.manual_seed(args.seed) # CPU random seed
     torch.cuda.manual_seed(args.seed) # GPU random seed
     torch.backends.cudnn.benchmark = True
@@ -174,14 +175,14 @@ if __name__ == '__main__':
     # dataset
     dictionary = Dictionary.load_from_file(args.input + '/dictionary.pkl') # load dictionary
     train_dset = ccksFeatureDataset(args.train_split, args.feat_label, args.input,
-                                   dictionary, args.lang_model, args.max_length, args.obj_max_num) # generate train data
+                                   dictionary, args.lang_model, args.max_length, args.obj_max_num, args.gpu) # generate train data
     eval_dset = ccksFeatureDataset(args.val_split, args.feat_label, args.input,
-                                  dictionary, args.lang_model, args.max_length, args.obj_max_num) # generate val data
+                                  dictionary, args.lang_model, args.max_length, args.obj_max_num, args.gpu) # generate val data
     batch_size = args.batch_size
  
     # data loader
-    train_loader = DataLoader(train_dset, batch_size, shuffle=True, num_workers=4)    # batch = 64
-    eval_loader =  DataLoader(eval_dset, batch_size, shuffle=True, num_workers=4)
+    train_loader = DataLoader(train_dset, batch_size, shuffle=True, num_workers=0)    # batch = 64
+    eval_loader =  DataLoader(eval_dset, batch_size, shuffle=True, num_workers=0)
 
     # build the model
     constructor = 'build_%s' % args.model

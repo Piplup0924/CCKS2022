@@ -130,7 +130,7 @@ def _load_dataset(dataroot, name):
 
 
 class ccksFeatureDataset(Dataset):
-    def __init__(self, name, feat_label, dataroot, dictionary, lang_model, max_length, obj_max_num):
+    def __init__(self, name, feat_label, dataroot, dictionary, lang_model, max_length, obj_max_num, device):
         super(ccksFeatureDataset, self).__init__ ()
         assert name in ['train', 'val', 'test']
         assert 'bert' in lang_model
@@ -141,7 +141,7 @@ class ccksFeatureDataset(Dataset):
         self.c_num = 4 # max choice number
         self.max_choice_length = 8 # max choice word length
         self.name = name
-        self.obj_dim = 577
+        self.obj_dim = 8
 
         # load and tokenize the questions and choices
         self.entries = _load_dataset(dataroot, name)
@@ -150,7 +150,7 @@ class ccksFeatureDataset(Dataset):
         self.tokenize()
         self.tensorize()
 
-        self.info_embed = Info_Embedding(lang_model, dataroot, obj_max_num)
+        self.info_embed = Info_Embedding(lang_model, dataroot, obj_max_num, device)
 
         # load image features
         h5_path = os.path.join(dataroot, 'patch_embeddings', feat_label, 'ccks_%s_%s.pth' % (name, feat_label))
@@ -199,7 +199,7 @@ class ccksFeatureDataset(Dataset):
 
             cTokens = torch.LongTensor(self.c_num, self.max_choice_length).zero_()
 
-            choice_num = len(entry['c_token']) # number of current choices, e.g., 3
+            choice_num = len(entry['c_token']) # number of current choices, e.g., 4
             c_token = torch.from_numpy(np.array(entry['c_token']))
             cTokens[0:choice_num, :].copy_(c_token)
             entry['c_token'] = cTokens
@@ -214,7 +214,7 @@ class ccksFeatureDataset(Dataset):
         choices = entry['c_token']
         img_name = entry['image_name']
 
-        obj = self.info_embed[img_name] # [obj_max_num, 577]
+        obj, value_feat = self.info_embed[img_name] # [obj_max_num, 4], [obj_max_num, 512]
 
         if self.name in ['train', 'val']:
             answer = entry['answer']
@@ -225,9 +225,9 @@ class ccksFeatureDataset(Dataset):
             if answer_label in range(self.c_num):
                 target[answer_label] = 1.0
             
-            return features, question, choices, target, obj, question_id
+            return features, question, choices, target, obj, value_feat, question_id
         elif self.name == "test":
-            return features, question, choices, obj, question_id
+            return features, question, choices, obj, value_feat, question_id
 
     def __len__(self):
         return len(self.entries)
